@@ -209,3 +209,5 @@ __marimo__/
 /__pycache__
 .DS_Store
 nxz-agents-e30cab2739dd.json
+.claude
+.vscode/
