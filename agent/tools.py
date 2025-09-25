@@ -275,3 +275,5 @@ def processar_comprovante(gcs_uri: str):
 def transferir_humano(contexto: str):
     """Transfere o atendimento para um humano, preservando o contexto."""
     return {"message": "Atendimento transferido para um humano com sucesso"}
+
+# Provavelmente um help desk
