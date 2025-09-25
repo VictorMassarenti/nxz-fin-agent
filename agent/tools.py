@@ -26,10 +26,15 @@ def _get_asaas_config():
     """Retorna configuração da API do Asaas."""
     api_key = os.getenv("ASAAS_API_KEY")
     if not api_key:
-        return None, {"status": "erro", "mensagem": "Chave de API do Asaas não configurada"}
+        return None, {
+            "status": "erro",
+            "mensagem": "Chave de API do Asaas não configurada",
+        }
 
     is_sandbox = os.getenv("ASAAS_SANDBOX", "false").lower() == "true"
-    base_url = "https://sandbox.asaas.com/api/v3" if is_sandbox else "https://api.asaas.com/v3"
+    base_url = (
+        "https://sandbox.asaas.com/api/v3" if is_sandbox else "https://api.asaas.com/v3"
+    )
     headers = {"access_token": api_key, "Content-Type": "application/json"}
 
     return {"base_url": base_url, "headers": headers}, None
@@ -89,7 +94,10 @@ def consulta_financeira(cnpj: str):
         return error
 
     # Verificar se encontrou o cliente
-    if not customer_data.get("totalCount", 0) > 0 or not customer_data.get("data"):
+    total_count = customer_data.get("totalCount", 0)
+    data = customer_data.get("data")
+
+    if total_count <= 0 or not data:
         return {
             "status": "nao_encontrado",
             "mensagem": "Cliente não encontrado no Asaas",
@@ -207,7 +215,7 @@ def atualizar_boleto(boleto_id: str, valor: float):
     update_data = {
         "value": valor,
         "dueDate": nova_data_vencimento,
-        "billingType": "UNDEFINED"
+        "billingType": "UNDEFINED",
     }
 
     # Atualizar o pagamento via API PUT
@@ -231,6 +239,7 @@ def atualizar_boleto(boleto_id: str, valor: float):
         "status_pagamento": updated_payment.get("status"),
     }
 
+
 @tool
 def registrar_negociacao(cnpj: str, detalhes: str):
     """Registra uma negociação feita com o cliente, salvando os detalhes no banco de dados."""
@@ -242,6 +251,7 @@ def registrar_negociacao(cnpj: str, detalhes: str):
             )
             conn.commit()
     return {"message": "Negociação registrada com sucesso"}
+
 
 @tool
 def processar_comprovante(gcs_uri: str):
