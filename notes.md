@@ -1,5 +1,5 @@
 # Sistemas agênticos
-Como transformar IA em vantagem competitiva e driblar o caminho de virar só mais um custo operacional
+Como transformar IA em vantagem competitiva e driblar o caminho de virar só mais um custo operacional? Quais são as regras do jogo? Quem está jogando? Quais estão sendo os resultados dos jogadores? Como estão jogando?
 
 ## Entendendo o que são Sistemas Agênticos
 
@@ -125,3 +125,17 @@ HIL (Human-in-the-Loop) em sistemas agênticos permite combinar a automação in
 - Hub omnichanel e gateway para mensagens -> Chatwoot
 - WhatsApp Provider -> API Oficial, Twillio, Whatsmeow
 - Infra (Apoio) -> Kubernetes & Terraform
+
+### AI Engineering ou Engenharia de IA
+
+Três métricas que importam (para donos)
+- % de conversas resolvidas: quantas interações a IA resolve sem humano.
+- p95 de tempo de resposta: rapidez percebida pelo usuário. Meta prática: p95 ≤ X s no seu caso.
+- custo por conversa: quanto você gasta; cobre acima disso para ter margem.
+
+Engenharia
+- Não terceirize ao agente aquilo que você consegue garantir com uma função determinística.
+- Meça, não presuma.
+- Pouco dado bem curado supera muito dado ruidoso.
+- Se o modelo é o motor, o dataset é o combustível e a geometria da pista. Dados limpos sobem a qualidade e baixam custo por conversa (menos retrabalho/retentativas)
+- No fim, Engenharia de IA é menos sobre “o modelo do momento” e mais sobre disciplina de produto: problemas bem definidos, medições honestas e ciclos de melhoria consistentes. É assim que ideias viram coisas que as pessoas realmente usam.
