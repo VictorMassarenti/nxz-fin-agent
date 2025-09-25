@@ -242,7 +242,18 @@ def atualizar_boleto(boleto_id: str, valor: float):
 
 @tool
 def registrar_negociacao(cnpj: str, detalhes: str):
-    """Registra uma negociação feita com o cliente, salvando os detalhes no banco de dados."""
+    """Registra uma negociação feita com o cliente, salvando os detalhes no banco de dados.
+
+    Args:
+        cnpj (str): CNPJ do cliente (obrigatório)
+        detalhes (str): Detalhes da negociação
+    """
+    if not cnpj or cnpj.strip() == "":
+        return {
+            "status": "erro",
+            "mensagem": "CNPJ é obrigatório para registrar a negociação"
+        }
+
     with _conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -250,7 +261,7 @@ def registrar_negociacao(cnpj: str, detalhes: str):
                 (cnpj, detalhes),
             )
             conn.commit()
-    return {"message": "Negociação registrada com sucesso"}
+    return {"status": "sucesso", "message": "Negociação registrada com sucesso"}
 
 
 @tool
