@@ -3,8 +3,10 @@ from langchain_openai import ChatOpenAI
 from agent.tools import (
     consulta_financeira,
     atualizar_boleto,
-    processar_comprovante,
+    validar_comprovante,
     transferir_humano,
+    registrar_negociacao,
+    verificar_negociacao
 )
 from agent.prompt import system_message, basic_prompt
 
@@ -21,7 +23,9 @@ agent = create_react_agent(
     tools=[
         consulta_financeira,
         atualizar_boleto,
-        processar_comprovante,
+        validar_comprovante,
         transferir_humano,
+        registrar_negociacao,
+        verificar_negociacao
     ],
 )

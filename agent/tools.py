@@ -265,15 +265,70 @@ def registrar_negociacao(cnpj: str, detalhes: str):
 
 
 @tool
-def processar_comprovante(gcs_uri: str):
-    """Processa um documento usando o Google Document AI.
+def verificar_negociacao(cnpj: str):
+    """Busca as negociações registradas para um CNPJ específico no banco de dados.
+
+    Args:
+        cnpj (str): CNPJ do cliente para buscar negociações
+
+    Returns:
+        dict: Lista de negociações encontradas ou erro se não houver negociações
+    """
+    if not cnpj or cnpj.strip() == "":
+        return {
+            "status": "erro",
+            "mensagem": "CNPJ é obrigatório para verificar negociações"
+        }
+
+    try:
+        with _conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT id, cnpj, detalhes, data_criacao FROM negociacoes WHERE cnpj = %s ORDER BY data_criacao DESC",
+                    (cnpj,)
+                )
+                negociacoes = cur.fetchall()
+
+        if not negociacoes:
+            return {
+                "status": "nao_encontrado",
+                "mensagem": "Nenhuma negociação encontrada para este CNPJ"
+            }
+
+        negociacoes_list = []
+        for neg in negociacoes:
+            negociacoes_list.append({
+                "id": neg[0],
+                "cnpj": neg[1],
+                "detalhes": neg[2],
+                "data_criacao": neg[3].isoformat() if neg[3] else None
+            })
+
+        return {
+            "status": "sucesso",
+            "negociacoes": negociacoes_list,
+            "total": len(negociacoes_list)
+        }
+
+    except Exception as e:
+        return {
+            "status": "erro",
+            "mensagem": f"Erro ao buscar negociações: {str(e)}"
+        }
+
+
+@tool
+def validar_comprovante(ocr_text: str):
+    """Valida o texto pós OCR do documento enviado.
     Retorna se o comprovante é válido ou não e a taxa de confiabilidade."""
+    print(ocr_text)
     return {"message": "Comprovante processado com sucesso"}
 
 
 @tool
 def transferir_humano(contexto: str):
     """Transfere o atendimento para um humano, preservando o contexto."""
+    print(contexto)
     return {"message": "Atendimento transferido para um humano com sucesso"}
 
 # Provavelmente um help desk
