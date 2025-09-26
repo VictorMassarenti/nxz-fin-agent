@@ -6,9 +6,6 @@ labels:
   team: financeiro
   version: "1.0.0"
 
-variables:
-  bucket_name: "{{ kv(BUCKET_NAME) }}"
-
 inputs:
   - id: file
     type: FILE
@@ -18,7 +15,7 @@ tasks:
     type: io.kestra.plugin.gcp.gcs.Upload
     serviceAccount: "{{ kv('GOOGLE_APPLICATION_CREDENTIALS') }}"
     from: "{{ inputs.file }}"
-    to: "gs://nxz-agents/{{ flow.id }}/{{ execution.id }}"
+    to: "gs://{{ BUCKET_NAME_TROCAR }}/{{ flow.id }}/{{ execution.id }}"
     disabled: false
 
   - id: auth
