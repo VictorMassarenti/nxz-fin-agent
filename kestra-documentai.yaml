@@ -1,0 +1,47 @@
+id: document-ai
+namespace: kestra.testes.nexuz
+
+labels:
+  environment: dev
+  team: financeiro
+  version: "1.0.0"
+
+variables:
+  bucket_name: "{{ kv(BUCKET_NAME) }}"
+
+inputs:
+  - id: file
+    type: FILE
+    required: true
+tasks:
+  - id: upload_file
+    type: io.kestra.plugin.gcp.gcs.Upload
+    serviceAccount: "{{ kv('GOOGLE_APPLICATION_CREDENTIALS') }}"
+    from: "{{ inputs.file }}"
+    to: "gs://nxz-agents/{{ flow.id }}/{{ execution.id }}"
+    disabled: false
+
+  - id: auth
+    type: io.kestra.plugin.gcp.auth.OauthAccessToken
+    serviceAccount: "{{ kv('GOOGLE_APPLICATION_CREDENTIALS') }}"
+
+  - id: document-ai-request
+    type: io.kestra.plugin.core.http.Request
+    uri: "{{ kv('GOOGLE_DOCUMENTAI_URI') }}"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ outputs.auth.accessToken.tokenValue }}"
+      Content-Type: "application/json"
+    body: |
+      {
+        "gcsDocument": {
+          "gcsUri": "{{ outputs.upload_file.uri }}",
+          "mimeType":  "application/pdf"
+        }
+      }
+    disabled: false
+
+triggers:
+  - id: webhook
+    type: io.kestra.plugin.core.trigger.Webhook
+    key: document-ai
