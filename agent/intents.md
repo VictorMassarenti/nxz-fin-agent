@@ -14,18 +14,18 @@
   - tool: `atualizar_boleto`
   - exemplos: "Preciso da segunda via", "Gerar novo boleto", "Fatura atualizada"
   - data: `{ message: "link-para-segunda-via" }`
-  - **Regra**: Se primeira negociação → desconto 5% (3 dias úteis)
+  - **Regra**: Se primeira negociação → atualizar boleto, desconto é automático pela ferramenta. (3 dias úteis o vencimento)
 - intent: `boleto_primeira_negociacao`
   - tool: `atualizar_boleto` + desconto
   - exemplos: "Primeira vez negociando", "Nunca paguei em atraso antes"
-  - data: `{ message: "link-com-desconto", desconto: "5%", validade: "3 dias úteis" }`
+  - data: `{ message: "link-com-desconto", validade: "3 dias úteis" }`
 
 ## Processamento de Comprovante
 - intent: `comprovante_validar`
-  - tool: `processar_comprovante`
+  - tool: `validar_comprovante`
   - exemplos: "Segue o comprovante", "Aqui está o PIX", "PDF do pagamento"
   - data: `{ message: "status_validacao", confiabilidade: "%" }`
-  - **Formatos**: PDF, JPG, PNG
+  - **Formatos**: Receberá o texto pós processamento OCR
 - intent: `comprovante_solicitar_novo`
   - tool: (análise) → solicitar reenvio
   - exemplos: "Comprovante ilegível", "Valor divergente", "Data incorreta"
@@ -34,10 +34,10 @@
 ## Negociação e Registro
 - intent: `negociacao_registrar`
   - tool: `registrar_negociacao`
-  - exemplos: "Cliente aceitou parcelamento", "Acordo fechado em 3x"
+  - exemplos: "Cliente teve seu boleto atualizado", "Atualizado boleto para pagamento"
   - data: `{ message: "Negociação registrada com sucesso" }`
 - intent: `negociacao_primeira_vez`
-  - tool: `consulta_financeira` + análise histórico
+  - tool: `verificar_negociacao`
   - exemplos: "É minha primeira negociação", "Nunca atrasei antes"
   - data: `{ elegivel_desconto: true/false }`
 
@@ -94,7 +94,7 @@
 
 ## Regras de Negócio Críticas
 - **NUNCA** prosseguir sem validar CNPJ via `consulta_financeira`
-- **NUNCA** oferecer desconto em segunda negociação
+- **NUNCA** oferecer desconto
 - **NUNCA** dar suporte técnico para clientes inadimplentes
 - **SEMPRE** usar `atendimento_finalizar` após resolver solicitação
 - **SEMPRE** preservar contexto ao transferir para humano
