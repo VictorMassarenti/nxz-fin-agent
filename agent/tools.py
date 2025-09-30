@@ -1,107 +1,61 @@
-import os
-import requests
 from datetime import datetime, timedelta
+import uuid
 
-import psycopg
 from langchain_core.tools import tool
 
-
-def _db_url() -> str:
-    user = os.getenv("DB_USER")
-    pwd = os.getenv("DB_PASSWORD")
-    host = os.getenv("DB_HOST")
-    port = os.getenv("DB_PORT")
-    name = os.getenv("DB_NAME")
-
-    base = f"postgresql://{user}:{pwd}@{host}:{port}/{name}"
-
-    return base
-
-
-def _conn():
-    return psycopg.connect(_db_url())
-
-
-def _get_asaas_config():
-    """Retorna configuração da API do Asaas."""
-    api_key = os.getenv("ASAAS_API_KEY")
-    if not api_key:
-        return None, {
-            "status": "erro",
-            "mensagem": "Chave de API do Asaas não configurada",
-        }
-
-    is_sandbox = os.getenv("ASAAS_SANDBOX", "false").lower() == "true"
-    base_url = (
-        "https://sandbox.asaas.com/api/v3" if is_sandbox else "https://api.asaas.com/v3"
-    )
-    headers = {"access_token": api_key, "Content-Type": "application/json"}
-
-    return {"base_url": base_url, "headers": headers}, None
-
-
-def _handle_asaas_request(method, url, headers, **kwargs):
-    """Faz requisição para API do Asaas com tratamento de erros padronizado."""
-    try:
-        response = requests.request(method, url, headers=headers, **kwargs)
-
-        if response.status_code != 200:
-            return None, {
-                "status": "erro",
-                "mensagem": f"Erro na requisição: {response.status_code} - {response.text}",
-            }
-
-        return response.json(), None
-
-    except requests.exceptions.RequestException as e:
-        return None, {
-            "status": "erro",
-            "mensagem": f"Erro de conexão com a API do Asaas: {str(e)}",
-        }
-    except Exception as e:
-        return None, {
-            "status": "erro",
-            "mensagem": f"Erro inesperado: {str(e)}",
-        }
-
+from agent.models import (
+    ConsultaFinanceiraInput,
+    ConsultaFinanceiraOutput,
+    AtualizarBoletoInput,
+    AtualizarBoletoOutput,
+    RegistrarNegociacaoInput,
+    RegistrarNegociacaoOutput,
+    VerificarNegociacaoInput,
+    VerificarNegociacaoOutput,
+    ValidarComprovanteInput,
+    ValidarComprovanteOutput,
+    TransferirHumanoInput,
+    TransferirHumanoOutput,
+)
+from agent.utils import _conn, _get_asaas_config, _handle_asaas_request
 
 @tool
-def consulta_financeira(cnpj: str):
+def consulta_financeira(input: ConsultaFinanceiraInput) -> ConsultaFinanceiraOutput:
     """Busca informações de um cliente e suas pendências no Asaas pelo CNPJ.
 
     Args:
-        cnpj (str): CNPJ do cliente a ser buscado
+        input: Dados de entrada contendo o CNPJ do cliente
 
     Returns:
-        dict: Informações do cliente e suas pendências retornadas pela API do Asaas
+        ConsultaFinanceiraOutput: Informações do cliente e suas pendências
     """
     # Obter configuração da API do Asaas
     config, error = _get_asaas_config()
     if error:
-        return error
+        return ConsultaFinanceiraOutput(**error)
 
     base_url = config["base_url"]
     headers = config["headers"]
 
     # Primeiro passo: Buscar o cliente pelo CNPJ
     customer_url = f"{base_url}/customers"
-    customer_params = {"cpfCnpj": cnpj}
+    customer_params = {"cpfCnpj": input.cnpj}
 
     customer_data, error = _handle_asaas_request(
         "GET", customer_url, headers, params=customer_params
     )
     if error:
-        return error
+        return ConsultaFinanceiraOutput(**error)
 
     # Verificar se encontrou o cliente
     total_count = customer_data.get("totalCount", 0)
     data = customer_data.get("data")
 
     if total_count <= 0 or not data:
-        return {
-            "status": "nao_encontrado",
-            "mensagem": "Cliente não encontrado no Asaas",
-        }
+        return ConsultaFinanceiraOutput(
+            status="nao_encontrado",
+            mensagem="Cliente não encontrado no Asaas",
+        )
 
     # Pegar o primeiro cliente encontrado
     cliente = customer_data["data"][0]
@@ -115,7 +69,7 @@ def consulta_financeira(cnpj: str):
         "GET", payments_url, headers, params=payments_params
     )
     if error:
-        return error
+        return ConsultaFinanceiraOutput(**error)
 
     # Processar as pendências para um formato mais amigável
     pendencias = []
@@ -157,9 +111,9 @@ def consulta_financeira(cnpj: str):
             )
 
     # Retornar as informações completas do cliente e suas pendências
-    return {
-        "status": "sucesso",
-        "cliente": {
+    return ConsultaFinanceiraOutput(
+        status="sucesso",
+        cliente={
             "id": cliente.get("id"),
             "nome": cliente.get("name"),
             "email": cliente.get("email"),
@@ -183,27 +137,26 @@ def consulta_financeira(cnpj: str):
                 else []
             ),
         },
-        "pendencias": pendencias,
-        "total_pendencias": len(pendencias),
-    }
+        pendencias=pendencias,
+        total_pendencias=len(pendencias),
+    )
 
 
 @tool
-def atualizar_boleto(boleto_id: str, valor: float):
+def atualizar_boleto(input: AtualizarBoletoInput) -> AtualizarBoletoOutput:
     """Atualiza um boleto existente no Asaas, definindo nova data de vencimento para 3 dias a partir de hoje.
     O desconto é aplicado automaticamente por ser antecipação do vencimento (desconto de juros).
 
     Args:
-        boleto_id (str): ID do pagamento no Asaas
-        valor (float): Valor do boleto
+        input: Dados de entrada contendo boleto_id e valor
 
     Returns:
-        dict: Informações do boleto atualizado com links de acesso
+        AtualizarBoletoOutput: Informações do boleto atualizado
     """
     # Obter configuração da API do Asaas
     config, error = _get_asaas_config()
     if error:
-        return error
+        return AtualizarBoletoOutput(**error)
 
     base_url = config["base_url"]
     headers = config["headers"]
@@ -213,87 +166,92 @@ def atualizar_boleto(boleto_id: str, valor: float):
 
     # Dados para atualização do boleto
     update_data = {
-        "value": valor,
+        "value": input.valor,
         "dueDate": nova_data_vencimento,
         "billingType": "UNDEFINED",
     }
 
     # Atualizar o pagamento via API PUT
-    payment_url = f"{base_url}/payments/{boleto_id}"
+    payment_url = f"{base_url}/payments/{input.boleto_id}"
     updated_payment, error = _handle_asaas_request(
         "PUT", payment_url, headers, json=update_data
     )
     if error:
-        return error
+        return AtualizarBoletoOutput(**error)
 
     # Retornar informações do boleto atualizado
-    return {
-        "status": "sucesso",
-        "boleto_id": updated_payment.get("id"),
-        "valor": updated_payment.get("value"),
-        "data_vencimento": updated_payment.get("dueDate"),
-        "data_vencimento_original": updated_payment.get("originalDueDate"),
-        "link_boleto": updated_payment.get("bankSlipUrl"),
-        "link_fatura": updated_payment.get("invoiceUrl"),
-        "numero_fatura": updated_payment.get("invoiceNumber"),
-        "status_pagamento": updated_payment.get("status"),
-    }
+    return AtualizarBoletoOutput(
+        status="sucesso",
+        boleto_id=updated_payment.get("id"),
+        valor=updated_payment.get("value"),
+        data_vencimento=updated_payment.get("dueDate"),
+        data_vencimento_original=updated_payment.get("originalDueDate"),
+        link_boleto=updated_payment.get("bankSlipUrl"),
+        link_fatura=updated_payment.get("invoiceUrl"),
+        numero_fatura=updated_payment.get("invoiceNumber"),
+        status_pagamento=updated_payment.get("status"),
+    )
 
 
 @tool
-def registrar_negociacao(cnpj: str, detalhes: str):
+def registrar_negociacao(input: RegistrarNegociacaoInput) -> RegistrarNegociacaoOutput:
     """Registra uma negociação feita com o cliente, salvando os detalhes no banco de dados.
 
     Args:
-        cnpj (str): CNPJ do cliente (obrigatório)
-        detalhes (str): Detalhes da negociação
+        input: Dados de entrada contendo CNPJ e detalhes da negociação
+
+    Returns:
+        RegistrarNegociacaoOutput: Status da operação
     """
-    if not cnpj or cnpj.strip() == "":
-        return {
-            "status": "erro",
-            "mensagem": "CNPJ é obrigatório para registrar a negociação"
-        }
+    if not input.cnpj or input.cnpj.strip() == "":
+        return RegistrarNegociacaoOutput(
+            status="erro",
+            mensagem="CNPJ é obrigatório para registrar a negociação"
+        )
 
     with _conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 "INSERT INTO negociacoes (cnpj, detalhes) VALUES (%s, %s)",
-                (cnpj, detalhes),
+                (input.cnpj, input.detalhes),
             )
             conn.commit()
-    return {"status": "sucesso", "message": "Negociação registrada com sucesso"}
+    return RegistrarNegociacaoOutput(
+        status="sucesso",
+        mensagem="Negociação registrada com sucesso"
+    )
 
 
 @tool
-def verificar_negociacao(cnpj: str):
+def verificar_negociacao(input: VerificarNegociacaoInput) -> VerificarNegociacaoOutput:
     """Busca as negociações registradas para um CNPJ específico no banco de dados.
 
     Args:
-        cnpj (str): CNPJ do cliente para buscar negociações
+        input: Dados de entrada contendo o CNPJ
 
     Returns:
-        dict: Lista de negociações encontradas ou erro se não houver negociações
+        VerificarNegociacaoOutput: Lista de negociações encontradas
     """
-    if not cnpj or cnpj.strip() == "":
-        return {
-            "status": "erro",
-            "mensagem": "CNPJ é obrigatório para verificar negociações"
-        }
+    if not input.cnpj or input.cnpj.strip() == "":
+        return VerificarNegociacaoOutput(
+            status="erro",
+            mensagem="CNPJ é obrigatório para verificar negociações"
+        )
 
     try:
         with _conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     "SELECT id, cnpj, detalhes, data_criacao FROM negociacoes WHERE cnpj = %s ORDER BY data_criacao DESC",
-                    (cnpj,)
+                    (input.cnpj,)
                 )
                 negociacoes = cur.fetchall()
 
         if not negociacoes:
-            return {
-                "status": "nao_encontrado",
-                "mensagem": "Nenhuma negociação encontrada para este CNPJ"
-            }
+            return VerificarNegociacaoOutput(
+                status="nao_encontrado",
+                mensagem="Nenhuma negociação encontrada para este CNPJ"
+            )
 
         negociacoes_list = []
         for neg in negociacoes:
@@ -304,31 +262,60 @@ def verificar_negociacao(cnpj: str):
                 "data_criacao": neg[3].isoformat() if neg[3] else None
             })
 
-        return {
-            "status": "sucesso",
-            "negociacoes": negociacoes_list,
-            "total": len(negociacoes_list)
-        }
+        return VerificarNegociacaoOutput(
+            status="sucesso",
+            negociacoes=negociacoes_list,
+            total=len(negociacoes_list)
+        )
 
     except Exception as e:
-        return {
-            "status": "erro",
-            "mensagem": f"Erro ao buscar negociações: {str(e)}"
-        }
+        return VerificarNegociacaoOutput(
+            status="erro",
+            mensagem=f"Erro ao buscar negociações: {str(e)}"
+        )
 
 
 @tool
-def validar_comprovante(ocr_text: str):
+def validar_comprovante(input: ValidarComprovanteInput) -> ValidarComprovanteOutput:
     """Valida o texto pós OCR do documento enviado.
-    Retorna se o comprovante é válido ou não e a taxa de confiabilidade."""
-    print(ocr_text)
-    return {"message": "Comprovante processado com sucesso"}
+    Retorna se o comprovante é válido ou não e a taxa de confiabilidade.
+
+    Args:
+        input: Dados de entrada contendo o texto do OCR
+
+    Returns:
+        ValidarComprovanteOutput: Resultado da validação
+    """
+    print(input.ocr_text)
+
+    # TODO: Implementar lógica de validação real
+    return ValidarComprovanteOutput(
+        status="sucesso",
+        mensagem="Comprovante processado com sucesso",
+        valido=True,
+        confiabilidade=0.95
+    )
 
 
 @tool
-def transferir_humano(contexto: str):
-    """Transfere o atendimento para um humano, preservando o contexto."""
-    print(contexto)
-    return {"message": "Atendimento transferido para um humano com sucesso"}
+def transferir_humano(input: TransferirHumanoInput) -> TransferirHumanoOutput:
+    """Transfere o atendimento para um humano, preservando o contexto.
+
+    Args:
+        input: Dados de entrada contendo o contexto da conversa
+
+    Returns:
+        TransferirHumanoOutput: Confirmação da transferência com ticket_id
+    """
+    print(input.contexto)
+
+    # Simulando geração de ticket
+    ticket_id = str(uuid.uuid4())[:8]
+
+    return TransferirHumanoOutput(
+        status="sucesso",
+        mensagem="Atendimento transferido para um humano com sucesso",
+        ticket_id=ticket_id
+    )
 
 # Provavelmente um help desk
